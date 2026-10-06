@@ -20,7 +20,7 @@ function load(env = {}, response = {}) {
     add(value) { measurements[this.name].push(value); }
   }
   const context = vm.createContext({
-    __ENV: env, __VU: 1, Counter: Metric, Rate: Metric, Trend: Metric,
+    __ENV: env, __VU: 1, Counter: Metric, Gauge: Metric, Rate: Metric, Trend: Metric,
     http: { get() { requestCount++; return { status: 200, body: '<title>פורום בני ברק</title>', timings: { duration: 120, waiting: 100 }, ...response }; } },
     check(result, checks) { return Object.values(checks).every((check) => check(result)); },
     sleep() {},
@@ -43,6 +43,19 @@ test('קלט שגוי נעצר לפני פנייה לאתר', () => {
   for (const total of ['0', '-1', '101', '5abc', '1.5', '$(id)']) assert.throws(() => load({ TOTAL_VUS: total }), /👥/);
   for (const duration of ['0s', '9s', '6m', 'one minute']) assert.throws(() => load({ TEST_DURATION: duration }), /⏱️/);
   assert.throws(() => load({ TARGET_URL: 'https://example.com' }), /🎯/);
+});
+
+test('100,000 משתמשים מתחלקים בדיוק בין 19 מחשבים', () => {
+  const allocations = [];
+  for (let i = 1; i <= 19; i++) {
+    const { api } = load({ DISTRIBUTED: '1', TOTAL_VUS: '100000', SHARD_COUNT: '19', SHARD_INDEX: String(i) });
+    allocations.push(api.options.scenarios.forum_visits.stages[0].target);
+  }
+  assert.equal(allocations.reduce((a, b) => a + b, 0), 100000);
+  assert.deepEqual(allocations.slice(0, 4), [5264, 5264, 5264, 5263]);
+  assert.throws(() => load({ DISTRIBUTED: '1', TOTAL_VUS: '100000', SHARD_COUNT: '1' }), /יותר מדי/);
+  assert.throws(() => load({ DISTRIBUTED: '1', TOTAL_VUS: '100001' }), /👥/);
+  assert.throws(() => load({ DISTRIBUTED: '1', TOTAL_VUS: '10', SHARD_COUNT: '20' }), /🧩/);
 });
 
 test('בדיקת הזמינות אינה נספרת ככניסת עומס', () => {

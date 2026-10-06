@@ -1,14 +1,24 @@
 import http from 'k6/http';
 import { check, sleep } from 'k6';
 import exec from 'k6/execution';
-import { Counter, Rate, Trend } from 'k6/metrics';
+import { Counter, Gauge, Rate, Trend } from 'k6/metrics';
 
 // הבדיקה הרגילה מופעלת ידנית מ-GitHub Actions מול פורום בני ברק.
 const BASE_URL = (__ENV.TARGET_URL || 'https://bnebrak.com').replace(/\/+$/, '');
 const rawUsers = __ENV.TOTAL_VUS || '5';
 const rawDuration = __ENV.TEST_DURATION || '1m';
-if (!/^\d+$/.test(rawUsers) || Number(rawUsers) < 1 || Number(rawUsers) > 100) {
-  throw new Error('👥 יש לבחור מספר שלם של משתמשים מדומים בין 1 ל־100. מומלץ להתחיל ב־5.');
+const DISTRIBUTED = __ENV.DISTRIBUTED === '1';
+const MAX_USERS = DISTRIBUTED ? 100000 : 100;
+if (!/^\d+$/.test(rawUsers) || Number(rawUsers) < 1 || Number(rawUsers) > MAX_USERS) {
+  throw new Error(`👥 יש לבחור מספר שלם בין 1 ל־${MAX_USERS}. מעל 100 משתמשים יש לבחור את הבדיקה המבוזרת.`);
+}
+const rawShards = __ENV.SHARD_COUNT || '1';
+const rawIndex = __ENV.SHARD_INDEX || '1';
+if (!/^\d+$/.test(rawShards) || !/^\d+$/.test(rawIndex)) throw new Error('🧩 מספר מחשבים ומספר מחשב חייבים להיות מספרים שלמים.');
+const SHARD_COUNT = Number(rawShards);
+const SHARD_INDEX = Number(rawIndex);
+if (SHARD_COUNT < 1 || SHARD_COUNT > 19 || SHARD_COUNT > Number(rawUsers) || SHARD_INDEX < 1 || SHARD_INDEX > SHARD_COUNT || (!DISTRIBUTED && SHARD_COUNT !== 1)) {
+  throw new Error('🧩 יש לבחור 1–19 מחשבי בדיקה, ולא יותר ממספר המשתמשים; מספר המחשב חייב להיכלל בטווח.');
 }
 const durationMatch = /^(\d+)(s|m)$/.exec(rawDuration);
 const TEST_SECONDS = durationMatch ? Number(durationMatch[1]) * (durationMatch[2] === 'm' ? 60 : 1) : 0;
@@ -19,7 +29,10 @@ if (TEST_SECONDS < 10 || TEST_SECONDS > 300) {
 if (!/^https:\/\/bnebrak\.com$/.test(BASE_URL) && !/^http:\/\/127\.0\.0\.1:\d+$/.test(BASE_URL)) {
   throw new Error('🎯 הגרסה הזו מותאמת לכתובת https://bnebrak.com.');
 }
-const TOTAL_VUS = Number(rawUsers);
+const GLOBAL_VUS = Number(rawUsers);
+// חלוקה מדויקת: שלושת המחשבים הראשונים מקבלים משתמש נוסף כאשר יש שארית 3.
+const TOTAL_VUS = Math.floor(GLOBAL_VUS / SHARD_COUNT) + (SHARD_INDEX <= GLOBAL_VUS % SHARD_COUNT ? 1 : 0);
+if (DISTRIBUTED && TOTAL_VUS > 10000) throw new Error('🧩 יותר מדי משתמשים למחשב אחד. הגדילו את מספר מחשבי הבדיקה.');
 const RAMP_SECONDS = Math.max(2, Math.floor(TEST_SECONDS * 0.2));
 const HOLD_SECONDS = TEST_SECONDS - RAMP_SECONDS * 2;
 const P95_TARGET_MS = 3000;
@@ -38,6 +51,9 @@ const limited429 = new Counter('limited_429');
 const serverErrors = new Counter('server_errors');
 const networkErrors = new Counter('network_errors');
 const unexpectedResponses = new Counter('unexpected_responses');
+const sampledVus = new Gauge('sampled_vus');
+const peakStartedAt = new Gauge('peak_started_at');
+const peakEndedAt = new Gauge('peak_ended_at');
 
 export const options = {
   scenarios: {
@@ -84,7 +100,8 @@ function responseMeaning(response) {
 
 export function setup() {
   console.log(`🎯 פורום לבדיקה: ${BASE_URL}/`);
-  console.log(`👥 שיא מתוכנן: ${TOTAL_VUS} משתמשים מדומים במקביל`);
+  console.log(`👥 שיא במחשב הזה: ${TOTAL_VUS} משתמשים מדומים; יעד כולל: ${GLOBAL_VUS}`);
+  if (DISTRIBUTED) console.log(`🧩 מחשב ${SHARD_INDEX} מתוך ${SHARD_COUNT}. הדוח המשולב יבדוק חפיפה של השיאים.`);
   console.log(`⏱️ משך מתוכנן: ${TEST_SECONDS} שניות, עם תוספת אפשרית לסיום בקשות פעילות`);
   console.log(`🪜 עלייה ${RAMP_SECONDS} שניות ← שיא ${HOLD_SECONDS} שניות ← ירידה ${RAMP_SECONDS} שניות`);
   console.log('🎯 יעדים: 95% מהכניסות בפחות מ־3 שניות; פחות מ־2% כניסות כושלות');
@@ -99,6 +116,7 @@ export function setup() {
 
 let lastProgressLog = -15000;
 let errorSamples = 0;
+let peakWasObserved = false;
 
 export default function () {
   const startedAt = Date.now();
@@ -125,6 +143,14 @@ export default function () {
 
   // משתמש אחד מדפיס דוגמאות בלבד; הסיכום כולל את כל המשתמשים והבקשות.
   if (__VU === 1) {
+    sampledVus.add(exec.instance.vusActive);
+    if (exec.instance.vusActive === TOTAL_VUS) {
+      if (!peakWasObserved) {
+        peakWasObserved = true;
+        peakStartedAt.add(Date.now());
+      }
+      peakEndedAt.add(Date.now());
+    }
     const elapsed = exec.instance.currentTestRunDuration;
     if (elapsed - lastProgressLog >= 15000) {
       lastProgressLog = elapsed;
@@ -179,6 +205,10 @@ export function handleSummary(data) {
       schema_version: 1,
       target_url: `${BASE_URL}/`,
       planned_vus: TOTAL_VUS,
+      planned_total_vus: GLOBAL_VUS,
+      shard_index: SHARD_INDEX,
+      shard_count: SHARD_COUNT,
+      distributed: DISTRIBUTED,
       planned_duration_seconds: TEST_SECONDS,
       p95_target_ms: P95_TARGET_MS,
       error_target_rate: ERROR_TARGET,
