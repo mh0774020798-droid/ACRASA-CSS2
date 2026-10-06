@@ -1,0 +1,29 @@
+name: '🧪 בדיקת קוד ודוחות — ללא פנייה לפורום'
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+    paths:
+      - load-test.js
+      - summarize.py
+      - tests/**
+      - scripts/**
+      - .github/workflows/**
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - name: '🔧 כלי מדידה לבדיקות מקומיות'
+        run: bash scripts/install-k6.sh
+      - name: '🧪 אימות הגדרות, מדדים ולוגים'
+        run: node --test tests/load-test.test.mjs
+      - name: '🧪 אימות דוחות והרצת k6 מול שרת דמה מקומי בלבד'
+        run: |
+          K6_REQUIRED=1 python3 -m unittest discover -s tests -p 'test_*.py' -v

@@ -1,76 +1,76 @@
-name: Forum Load Test
+name: "🚀 בדיקת מהירות פורום בני ברק"
 
 on:
   workflow_dispatch:
     inputs:
-      target_url:
-        description: 'כתובת הפורום לבדיקה'
-        required: true
-        default: 'https://surveys-trademarks-quantities-elderly.trycloudflare.com'
       total_vus:
-        description: 'סה"כ משתמשים וירטואליים בו-זמנית (יחולק בין ה-shards)'
-        required: true
-        default: '20000'
-      shard_count:
-        description: 'כמה runners מקבילים (מומלץ 4-10, כל אחד מייצר חלק מהעומס)'
+        description: '👥 מספר משתמשים מדומים במקביל (1–100; התחילו ב־5)'
         required: true
         default: '5'
+        type: string
+      duration:
+        description: '⏱️ משך הבדיקה'
+        required: true
+        default: '1m'
+        type: choice
+        options:
+          - '1m'
+          - '3m'
+          - '5m'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: bnebrak-forum-load-test
+  cancel-in-progress: false
 
 jobs:
   load-test:
+    name: '📊 בדיקה ודוח בעברית'
     runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        shard: ${{ fromJson(github.event.inputs.shard_count == '5' && '[1,2,3,4,5]' || github.event.inputs.shard_count == '10' && '[1,2,3,4,5,6,7,8,9,10]' || '[1,2,3,4]') }}
+    timeout-minutes: 12
+    env:
+      TARGET_URL: https://bnebrak.com
+      TOTAL_VUS: ${{ inputs.total_vus }}
+      TEST_DURATION: ${{ inputs.duration }}
     steps:
-      - name: Checkout
+      - name: '📥 הכנת קובצי הבדיקה'
         uses: actions/checkout@v4
 
-      - name: Install k6
-        run: |
-          sudo gpg -k
-          sudo gpg --no-default-keyring --keyring /usr/share/keyrings/k6-archive-keyring.gpg --keyserver hkp://keyserver.ubuntu.com:80 --recv-keys C5AD17C747E3415A3642D57D77C6C491D6AC1D69
-          echo "deb [signed-by=/usr/share/keyrings/k6-archive-keyring.gpg] https://dl.k6.io/deb stable main" | sudo tee /etc/apt/sources.list.d/k6.list
-          sudo apt-get update
-          sudo apt-get install -y k6
+      - name: '🔧 התקנת כלי המדידה'
+        run: bash scripts/install-k6.sh
 
-      - name: Run load test (shard ${{ matrix.shard }})
-        env:
-          TARGET_URL: ${{ github.event.inputs.target_url }}
-          TOTAL_VUS: ${{ github.event.inputs.total_vus }}
-          SHARD_COUNT: ${{ github.event.inputs.shard_count }}
+      - name: '🚀 בדיקת זמינות, עלייה בעומס ומדידת מהירות'
+        id: load
         run: |
-          k6 run load-test.js \
-            --out json=results-shard-${{ matrix.shard }}.json \
-            --summary-export=summary-shard-${{ matrix.shard }}.json
+          # שומרים את קוד היציאה וגם מכשילים את הריצה כשהיעדים לא הושגו.
+          status=0
+          k6 run --quiet load-test.js || status=$?
+          printf '%s\n' "$status" > k6-exit-code.txt
+          exit "$status"
 
-      - name: Upload results
+      - name: '📝 סיכום ברור בעברית ודוח להורדה'
+        if: always()
+        run: |
+          status=0
+          python3 summarize.py summary.json \
+            --exit-code-file k6-exit-code.txt \
+            --markdown report.md --html report.html || status=$?
+          if [ -f report.md ]; then
+            cat report.md >> "$GITHUB_STEP_SUMMARY"
+          fi
+          exit "$status"
+
+      - name: '💾 שמירת הדוח והנתונים'
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: results-shard-${{ matrix.shard }}
+          name: bnebrak-performance-report-${{ github.run_id }}
+          retention-days: 14
+          if-no-files-found: warn
           path: |
-            results-shard-${{ matrix.shard }}.json
-            summary-shard-${{ matrix.shard }}.json
-
-  summarize:
-    needs: load-test
-    if: always()
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Download all results
-        uses: actions/download-artifact@v4
-        with:
-          path: all-results
-
-      - name: Print combined summary
-        run: |
-          echo "## תוצאות טסט העומס" >> $GITHUB_STEP_SUMMARY
-          for f in all-results/*/summary-*.json; do
-            echo "### $f" >> $GITHUB_STEP_SUMMARY
-            python3 summarize.py "$f" >> $GITHUB_STEP_SUMMARY || echo "שגיאה בפירוק $f" >> $GITHUB_STEP_SUMMARY
-          done
+            report.html
+            report.md
+            summary.json
+            k6-exit-code.txt
