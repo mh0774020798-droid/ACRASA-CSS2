@@ -1,0 +1,161 @@
+name: '🌐 בדיקת עומס גדולה — עד 100,000 משתמשים'
+
+on:
+  workflow_dispatch:
+    inputs:
+      total_vus:
+        description: '👥 יעד משתמשים במקביל (עד 100,000)'
+        required: true
+        default: '100000'
+        type: string
+      shard_count:
+        description: '🧩 מחשבי בדיקה (1–19; ל־100,000 בחרו 19)'
+        required: true
+        default: '19'
+        type: string
+      duration:
+        description: '⏱️ משך המדידה, בנוסף להכנת כל המחשבים'
+        required: true
+        default: '3m'
+        type: choice
+        options: ['1m', '3m', '5m']
+      runner_type:
+        description: '🖥️ מחשבי GitHub או מחשבים ייעודיים המחוברים למאגר'
+        required: true
+        default: 'github-hosted'
+        type: choice
+        options: ['github-hosted', 'self-hosted']
+
+permissions:
+  contents: read
+  actions: read
+
+# גם הבדיקה הקטנה משתמשת בקבוצה הזו: שתי בדיקות לפורום אינן חופפות.
+concurrency:
+  group: bnebrak-forum-load-test
+  cancel-in-progress: false
+
+env:
+  TARGET_URL: https://bnebrak.com
+  TOTAL_VUS: ${{ inputs.total_vus }}
+  SHARD_COUNT: ${{ inputs.shard_count }}
+  TEST_DURATION: ${{ inputs.duration }}
+  DISTRIBUTED: '1'
+
+jobs:
+  plan:
+    name: '🧮 חלוקה מדויקת של המשתמשים'
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.plan.outputs.matrix }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: plan
+        run: python3 scripts/distributed_control.py plan
+      - uses: actions/upload-artifact@v4
+        with:
+          name: bnebrak-plan-${{ github.run_id }}-${{ github.run_attempt }}
+          path: plan.json
+          retention-days: 7
+
+  workers:
+    name: '🧩 מחשב ${{ matrix.index }} — ${{ matrix.vus }} משתמשים'
+    needs: plan
+    runs-on: ${{ inputs.runner_type == 'self-hosted' && fromJSON('["self-hosted","linux","x64","bnebrak-load"]') || fromJSON('["ubuntu-latest"]') }}
+    timeout-minutes: 20
+    strategy:
+      fail-fast: true
+      matrix: ${{ fromJSON(needs.plan.outputs.matrix) }}
+    env:
+      SHARD_INDEX: ${{ matrix.index }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: '🔧 הכנת כלי המדידה'
+        run: bash scripts/install-k6.sh
+      - name: '⏸️ הכנת המשתמשים ללא יצירת עומס'
+        run: |
+          ulimit -n 65536
+          python3 scripts/distributed_control.py launch
+      - name: '✅ הודעה למתאם שהמחשב מוכן'
+        uses: actions/upload-artifact@v4
+        with:
+          name: bnebrak-ready-${{ github.run_id }}-${{ github.run_attempt }}-${{ matrix.index }}
+          path: ready.json
+          retention-days: 1
+      - name: '🚀 המתנה ליתר המחשבים והתחלה מסונכרנת'
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: python3 scripts/distributed_control.py resume
+      - name: '🛑 סיום התהליך ואיסוף תוצאה גם במקרה כישלון'
+        if: always()
+        run: python3 scripts/distributed_control.py cleanup
+      - name: '💾 שמירת המדדים והלוג של המחשב'
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: bnebrak-result-${{ github.run_id }}-${{ github.run_attempt }}-${{ matrix.index }}
+          retention-days: 7
+          if-no-files-found: warn
+          path: |
+            summary.json
+            worker-metrics.json
+            k6-exit-code.txt
+            k6.log
+            monitor.log
+
+  coordinator:
+    name: '🧭 המתנה לכל המחשבים ותיאום מועד משותף'
+    needs: plan
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: bnebrak-plan-${{ github.run_id }}-${{ github.run_attempt }}
+      - name: '🧭 וידוא שכל המשתמשים הוכנו'
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: python3 scripts/distributed_control.py coordinate
+      - name: '🟢 פרסום מועד התחלה או סיבת עצירה'
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: bnebrak-start-${{ github.run_id }}-${{ github.run_attempt }}
+          path: start.json
+          retention-days: 1
+          if-no-files-found: error
+
+  report:
+    name: '📊 דוח משולב: יעד, שיא שאומת ותקלות'
+    needs: [plan, workers, coordinator]
+    if: always() && needs.plan.result == 'success'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: bnebrak-plan-${{ github.run_id }}-${{ github.run_attempt }}
+      - name: '📥 איסוף דוחות המחשבים שסיימו'
+        uses: actions/download-artifact@v4
+        with:
+          pattern: bnebrak-result-${{ github.run_id }}-${{ github.run_attempt }}-*
+          path: all-results
+      - name: '📝 דוח בעברית ובדיקת חפיפה אמיתית של השיאים'
+        run: |
+          status=0
+          python3 aggregate.py --plan plan.json --results all-results || status=$?
+          if [ -f report.md ]; then
+            cat report.md >> "$GITHUB_STEP_SUMMARY"
+          fi
+          exit "$status"
+      - name: '💾 הורדת הדוח המשולב'
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: bnebrak-combined-report-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            report.html
+            report.md
+            plan.json
+          retention-days: 7

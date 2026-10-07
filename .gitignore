@@ -3,3 +3,12 @@ report.html
 report.md
 k6-exit-code.txt
 __pycache__/
+all-results/
+plan.json
+start.json
+ready.json
+resumed.json
+worker-process.json
+worker-metrics.json
+k6.log
+monitor.log

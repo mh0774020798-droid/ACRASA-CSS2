@@ -145,6 +145,9 @@ def render_markdown(report):
     lines.extend(f"| {markdown_escape(label)} | {verdict} |" for label, verdict in report["targets"])
     lines.extend(["", "### 🔎 מה פירוש השגיאות?", "", "| סוג תקלה | מספר כניסות | פירוש |", "| --- | --- | --- |"])
     lines.extend(f"| {markdown_escape(label)} | {value} | {markdown_escape(meaning)} |" for label, value, meaning in report["errors"])
+    if report.get("workers"):
+        lines.extend(["", "### 🧩 תוצאות לפי מחשב בדיקה", "", "| מחשב | יעד מקומי | שיא שנדגם | p95 מקומי | תקלות | תוצאה |", "| --- | --- | --- | --- | --- | --- |"])
+        lines.extend("| " + " | ".join(markdown_escape(value) for value in row) + " |" for row in report["workers"])
     lines.extend(["", "### 💡 איך לקרוא את הבדיקה", ""])
     lines.extend(f"- {markdown_escape(note)}" for note in report["notes"])
     return "\n".join(lines) + "\n"
@@ -156,6 +159,10 @@ def render_html(report):
     targets = "".join(f"<tr><td>{escape(label)}</td><td>{escape(verdict)}</td></tr>" for label, verdict in report["targets"])
     errors = "".join(f"<tr><td>{escape(label)}</td><td>{escape(value)}</td><td>{escape(meaning)}</td></tr>" for label, value, meaning in report["errors"])
     notes = "".join(f"<li>{escape(note)}</li>" for note in report["notes"])
+    worker_table = ""
+    if report.get("workers"):
+        worker_rows = "".join("<tr>" + "".join(f"<td>{escape(value)}</td>" for value in row) + "</tr>" for row in report["workers"])
+        worker_table = f"<section><h2>🧩 תוצאות לפי מחשב בדיקה</h2><div class='scroll'><table><thead><tr><th>מחשב</th><th>יעד מקומי</th><th>שיא שנדגם</th><th>p95 מקומי</th><th>תקלות</th><th>תוצאה</th></tr></thead><tbody>{worker_rows}</tbody></table></div></section>"
     return f"""<!doctype html>
 <html lang="he" dir="rtl"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>דוח מהירות — פורום בני ברק</title><style>
@@ -163,7 +170,7 @@ def render_html(report):
 </style></head><body><main><header><h1>📊 דוח מהירות — פורום בני ברק</h1><p>כתובת שנבדקה: <bdi dir="ltr">{escape(report['target'])}</bdi></p><div class="status {report['tone']}"><strong>{escape(report['title'])}</strong><p>{escape(report['explanation'])}</p></div></header>
 <div class="grid">{cards}</div><section><h2>🎯 יעדי הבדיקה</h2><div class="scroll"><table><thead><tr><th>יעד</th><th>תוצאה</th></tr></thead><tbody>{targets}</tbody></table></div></section>
 <section><h2>🔎 תקלות והמשמעות שלהן</h2><div class="scroll"><table><thead><tr><th>סוג תקלה</th><th>מספר כניסות</th><th>פירוש</th></tr></thead><tbody>{errors}</tbody></table></div></section>
-<section><h2>💡 איך להבין את התוצאות</h2><ul>{notes}</ul></section><footer>הדוח פועל כקובץ מקומי, ללא אינטרנט וללא שירות חיצוני.</footer></main></body></html>"""
+{worker_table}<section><h2>💡 איך להבין את התוצאות</h2><ul>{notes}</ul></section><footer>הדוח פועל כקובץ מקומי, ללא אינטרנט וללא שירות חיצוני.</footer></main></body></html>"""
 
 
 def main():
