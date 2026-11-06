@@ -67,7 +67,7 @@ test('בדיקת הזמינות אינה נספרת ככניסת עומס', () =
 
 test('403 ועמוד חסימה עם קוד 200 עוצרים את הבדיקה המקדימה', () => {
   assert.throws(() => load({}, { status: 403 }).api.setup(), /403/);
-  assert.throws(() => load({}, { body: 'Just a moment...' }).api.setup(), /תוכן הפורום לא זוהה/);
+  assert.throws(() => load({}, { body: 'Just a moment...' }).api.setup(), /תוכן עוגן פליי לא זוהה/);
 });
 
 test('כל כניסה נכשלת נספרת פעם אחת, עם סיבה אחת', () => {
