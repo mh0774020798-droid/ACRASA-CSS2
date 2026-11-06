@@ -11,7 +11,7 @@ def summary():
     def metric(**values):
         return {"values": values}
     return {
-        "forum_test": {"target_url": "https://bnebrak.com/", "planned_vus": 5, "planned_duration_seconds": 60, "p95_target_ms": 3000, "error_target_rate": 0.02},
+        "site_test": {"target_url": "https://ogenplay.com/", "planned_vus": 5, "planned_duration_seconds": 60, "p95_target_ms": 3000, "error_target_rate": 0.02},
         "state": {"testRunDurationMs": 62000},
         "metrics": {
             "visits": metric(count=100), "successful_visits": metric(count=99), "failed_visits": metric(count=1),
@@ -66,7 +66,7 @@ class ReportTests(unittest.TestCase):
 
     def test_html_escapes_external_content(self):
         data = summary()
-        data["forum_test"]["target_url"] = '<script>alert("x")</script>'
+        data["site_test"]["target_url"] = '<script>alert("x")</script>'
         result = summarize.render_html(summarize.make_report(data))
         self.assertIn("&lt;script&gt;", result)
         self.assertNotIn("<script>", result)
