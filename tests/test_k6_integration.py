@@ -27,7 +27,7 @@ class K6IntegrationTests(unittest.TestCase):
             def do_GET(self):
                 Handler.requests += 1
                 status = 403 if mode == "blocked" else 429 if mode == "limited" and Handler.requests > 1 else 200
-                body = ("פורום בני ברק" if status == 200 else "blocked").encode("utf-8")
+                body = ("עוגן פליי" if status == 200 else "blocked").encode("utf-8")
                 self.send_response(status)
                 self.send_header("Content-Type", "text/html; charset=utf-8")
                 self.send_header("Content-Length", str(len(body)))

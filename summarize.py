@@ -36,7 +36,7 @@ def percentage(value):
 
 
 def make_report(data, exit_code=None, read_error=None):
-    metadata = data.get("forum_test", {})
+    metadata = data.get("site_test", {})
     total = metric_number(data, "visits")
     failed = metric_number(data, "failed_visits")
     succeeded = metric_number(data, "successful_visits")
@@ -69,13 +69,13 @@ def make_report(data, exit_code=None, read_error=None):
     if incomplete:
         title = "🛑 הבדיקה לא הושלמה או שאין מספיק נתונים"
         tone = "warning"
-        explanation = "אין להסיק מתוצאה זו שהפורום עומד בעומס שבחרתם. בדקו את השלב שנכשל בלוגים."
+        explanation = "אין להסיק מתוצאה זו שהאתר עומד בעומס שבחרתם. בדקו את השלב שנכשל בלוגים."
     elif passed:
-        title = "✅ הפורום עמד ביעדים של הבדיקה הזו"
+        title = "✅ האתר עמד ביעדים של הבדיקה הזו"
         tone = "success"
         explanation = "הכניסות היו מהירות מספיק ושיעור התקלות נמוך מהיעד, בתנאים ובעומס שנבדקו."
     else:
-        title = "⚠️ הפורום לא עמד בכל יעדי הבדיקה"
+        title = "⚠️ האתר לא עמד בכל יעדי הבדיקה"
         tone = "warning"
         explanation = "המהירות, שיעור השגיאות או יעד אחר חרגו מהגבולות שהוגדרו. ייתכן שהבדיקה נעצרה מוקדם."
 
@@ -99,7 +99,7 @@ def make_report(data, exit_code=None, read_error=None):
         ("🚦 429 — יותר מדי בקשות", "limited_429", "האתר מגביל את קצב הבקשות. הקטינו את מספר המשתמשים ובדקו את ההגבלה."),
         ("🖥️ 5xx — שגיאת שרת", "server_errors", "השרת או שירות מתווך החזירו שגיאה. בדקו משאבים ולוגים בזמן הבדיקה."),
         ("🔌 אין תגובת HTTP", "network_errors", "ייתכן timeout, DNS, TLS או תקלה בחיבור; המדד לבדו אינו מזהה את הסיבה."),
-        ("📄 תגובה לא צפויה", "unexpected_responses", "לדוגמה: הפניה, 404 או HTTP 200 בלי הטקסט המזוהה של הפורום."),
+        ("📄 תגובה לא צפויה", "unexpected_responses", "לדוגמה: הפניה, 404 או HTTP 200 בלי הטקסט המזוהה של האתר."),
     ]
     errors = [(label, integer(metric_number(data, name)), meaning) for label, name, meaning in kinds]
     speed_verdict = "לא נמדד" if p95 is None else "✅ הושג" if p95 < p95_target else "❌ לא הושג"
@@ -109,7 +109,7 @@ def make_report(data, exit_code=None, read_error=None):
         (f"פחות מ־{error_target * 100:g}% כניסות כושלות", error_verdict),
     ]
     notes = [
-        "משתמש מדומה הוא תהליך שמבקש את עמוד הבית, ממתין 1–3 שניות וחוזר שוב. זו אינה התחברות של משתמש אמיתי לפורום.",
+        "משתמש מדומה הוא תהליך שמבקש את עמוד הבית, ממתין 1–3 שניות וחוזר שוב. זו אינה התחברות של משתמש אמיתי לאתר.",
         "p95 הוא גבול הזמן ש־95 מתוך 100 כניסות הסתיימו עד אליו; הוא אינו זמן ההמתנה של כל משתמש ואינו הממוצע.",
         "זמן הכניסה החדש כולל את כל פעולת ה־GET, לרבות הקמת חיבור כשנדרשת. המדידה מתחילה במחשב הבודק ב־GitHub.",
         "הבדיקה המקדימה אינה נכללת במוני הכניסות או בזמן הכניסה בדוח החדש. זמן הריצה הכללי עשוי לכלול הכנה וסיום בקשות.",
@@ -165,16 +165,16 @@ def render_html(report):
         worker_table = f"<section><h2>🧩 תוצאות לפי מחשב בדיקה</h2><div class='scroll'><table><thead><tr><th>מחשב</th><th>יעד מקומי</th><th>שיא שנדגם</th><th>p95 מקומי</th><th>תקלות</th><th>תוצאה</th></tr></thead><tbody>{worker_rows}</tbody></table></div></section>"
     return f"""<!doctype html>
 <html lang="he" dir="rtl"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>דוח מהירות — פורום בני ברק</title><style>
+<title>דוח עומס — עוגן פליי</title><style>
 *{{box-sizing:border-box}}body{{margin:0;background:#f4f7fc;color:#17253b;font-family:Arial,'Segoe UI',sans-serif;line-height:1.65}}main{{max-width:1120px;margin:36px auto;padding:0 24px 36px}}header{{background:#fff;border:1px solid #dfe7f3;border-top:5px solid #2463d3;border-radius:16px;padding:28px;margin-bottom:20px}}h1{{font-size:26px;line-height:1.45;margin:0 0 12px}}h2{{font-size:20px;margin:0 0 14px}}p{{margin:10px 0}}.status{{border-radius:10px;padding:16px;margin-top:18px}}.success{{background:#e9f8ee;color:#185c35}}.warning{{background:#fff4dc;color:#6f4b09}}.grid{{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px}}.card{{background:#fff;border:1px solid #dfe7f3;border-radius:12px;padding:20px}}.label{{color:#586980;font-size:14px;margin-bottom:10px}}strong{{font-size:18px;display:block}}section{{background:#fff;border:1px solid #dfe7f3;border-radius:14px;padding:24px;margin-top:20px}}.scroll{{overflow-x:auto}}table{{width:100%;border-collapse:collapse;min-width:480px}}th,td{{text-align:right;border-bottom:1px solid #e4eaf3;padding:12px 8px;vertical-align:top}}th{{font-size:14px;color:#586980}}td:nth-child(2){{white-space:nowrap}}ul{{padding-right:22px;margin-bottom:0}}li{{margin-bottom:10px}}bdi{{unicode-bidi:isolate;color:#2463d3}}footer{{font-size:13px;color:#586980;margin-top:20px}}@media(max-width:760px){{.grid{{grid-template-columns:repeat(2,minmax(0,1fr))}}main{{padding:0 14px;margin:18px auto}}header,section{{padding:20px}}h1{{font-size:22px}}}}@media(max-width:440px){{.grid{{grid-template-columns:1fr}}}}@media print{{body{{background:#fff}}main{{margin:0}}section,.card{{break-inside:avoid}}}}
-</style></head><body><main><header><h1>📊 דוח מהירות — פורום בני ברק</h1><p>כתובת שנבדקה: <bdi dir="ltr">{escape(report['target'])}</bdi></p><div class="status {report['tone']}"><strong>{escape(report['title'])}</strong><p>{escape(report['explanation'])}</p></div></header>
+</style></head><body><main><header><h1>📊 דוח עומס — עוגן פליי</h1><p>כתובת שנבדקה: <bdi dir="ltr">{escape(report['target'])}</bdi></p><div class="status {report['tone']}"><strong>{escape(report['title'])}</strong><p>{escape(report['explanation'])}</p></div></header>
 <div class="grid">{cards}</div><section><h2>🎯 יעדי הבדיקה</h2><div class="scroll"><table><thead><tr><th>יעד</th><th>תוצאה</th></tr></thead><tbody>{targets}</tbody></table></div></section>
 <section><h2>🔎 תקלות והמשמעות שלהן</h2><div class="scroll"><table><thead><tr><th>סוג תקלה</th><th>מספר כניסות</th><th>פירוש</th></tr></thead><tbody>{errors}</tbody></table></div></section>
 {worker_table}<section><h2>💡 איך להבין את התוצאות</h2><ul>{notes}</ul></section><footer>הדוח פועל כקובץ מקומי, ללא אינטרנט וללא שירות חיצוני.</footer></main></body></html>"""
 
 
 def main():
-    parser = argparse.ArgumentParser(description="📊 יצירת דוח בדיקת פורום בעברית")
+    parser = argparse.ArgumentParser(description="📊 יצירת דוח בדיקת אתר עוגן פליי בעברית")
     parser.add_argument("summary", type=Path)
     parser.add_argument("--exit-code-file", type=Path)
     parser.add_argument("--markdown", type=Path)

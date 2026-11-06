@@ -9,7 +9,7 @@ from test_reports import summary
 
 def entry(index, local, start=1000, end=2000):
     data = summary()
-    data["forum_test"].update({"planned_vus": local, "planned_total_vus": 5, "shard_index": index, "shard_count": 2})
+    data["site_test"].update({"planned_vus": local, "planned_total_vus": 5, "shard_index": index, "shard_count": 2})
     data["metrics"].update({"sampled_vus": {"values": {"max": local}}, "peak_started_at": {"values": {"value": start}}, "peak_ended_at": {"values": {"value": end}}})
     return data, {"resource_valid": True, "exit_code": 0}
 
@@ -72,7 +72,7 @@ class DistributedTests(unittest.TestCase):
         env = {"GITHUB_RUN_ID": "10", "GITHUB_RUN_ATTEMPT": "1"}
         with patch.dict(os.environ, env):
             plan = control.make_plan("5", "2", "1m")
-            names = [{"id": 1, "name": "bnebrak-ready-10-1-1"}, {"id": 2, "name": "bnebrak-ready-10-1-2"}]
+            names = [{"id": 1, "name": "ogenplay-ready-10-1-1"}, {"id": 2, "name": "ogenplay-ready-10-1-2"}]
             ready = {1: {"index": 1, "vus": 3, "initialized": 3, "run_id": "10", "attempt": "1"},
                      2: {"index": 2, "vus": 2, "initialized": 2, "run_id": "10", "attempt": "1"}}
             with patch.object(control, "artifacts", return_value=names), patch.object(control, "artifact_json", side_effect=lambda artifact, name: ready[artifact["id"]]), patch.object(control, "write_json") as write:

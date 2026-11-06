@@ -3,8 +3,8 @@ import { check, sleep } from 'k6';
 import exec from 'k6/execution';
 import { Counter, Gauge, Rate, Trend } from 'k6/metrics';
 
-// הבדיקה הרגילה מופעלת ידנית מ-GitHub Actions מול פורום בני ברק.
-const BASE_URL = (__ENV.TARGET_URL || 'https://bnebrak.com').replace(/\/+$/, '');
+// הבדיקה הרגילה מופעלת ידנית מ-GitHub Actions מול עוגן פליי.
+const BASE_URL = (__ENV.TARGET_URL || 'https://ogenplay.com').replace(/\/+$/, '');
 const rawUsers = __ENV.TOTAL_VUS || '5';
 const rawDuration = __ENV.TEST_DURATION || '1m';
 const DISTRIBUTED = __ENV.DISTRIBUTED === '1';
@@ -26,8 +26,8 @@ if (TEST_SECONDS < 10 || TEST_SECONDS > 300) {
   throw new Error('⏱️ משך הבדיקה חייב להיות בין 10 שניות ל־5 דקות, למשל 1m.');
 }
 // localhost משמש אך ורק לבדיקות הקוד האוטומטיות.
-if (!/^https:\/\/bnebrak\.com$/.test(BASE_URL) && !/^http:\/\/127\.0\.0\.1:\d+$/.test(BASE_URL)) {
-  throw new Error('🎯 הגרסה הזו מותאמת לכתובת https://bnebrak.com.');
+if (!/^https:\/\/ogenplay\.com$/.test(BASE_URL) && !/^http:\/\/127\.0\.0\.1:\d+$/.test(BASE_URL)) {
+  throw new Error('🎯 הגרסה הזו מותאמת לכתובת https://ogenplay.com.');
 }
 const GLOBAL_VUS = Number(rawUsers);
 // חלוקה מדויקת: שלושת המחשבים הראשונים מקבלים משתמש נוסף כאשר יש שארית 3.
@@ -37,7 +37,7 @@ const RAMP_SECONDS = Math.max(2, Math.floor(TEST_SECONDS * 0.2));
 const HOLD_SECONDS = TEST_SECONDS - RAMP_SECONDS * 2;
 const P95_TARGET_MS = 3000;
 const ERROR_TARGET = 0.02;
-const EXPECTED_TEXT = 'פורום בני ברק';
+const EXPECTED_TEXT = 'עוגן פליי';
 
 const visits = new Counter('visits');
 const successfulVisits = new Counter('successful_visits');
@@ -57,7 +57,7 @@ const peakEndedAt = new Gauge('peak_ended_at');
 
 export const options = {
   scenarios: {
-    forum_visits: {
+    site_visits: {
       executor: 'ramping-vus',
       startVUs: 1,
       stages: [
@@ -70,20 +70,23 @@ export const options = {
     },
   },
   thresholds: {
-    visit_duration: [`p(95)<${P95_TARGET_MS}`],
+    visit_duration: [
+      `p(95)<${P95_TARGET_MS}`,
+      { threshold: 'p(95)<10000', abortOnFail: true, delayAbortEval: '30s' },
+    ],
     errors: [
       `rate<${ERROR_TARGET}`,
       { threshold: 'rate<0.10', abortOnFail: true, delayAbortEval: '30s' },
     ],
   },
   summaryTrendStats: ['avg', 'min', 'med', 'max', 'p(95)', 'p(99)'],
-  userAgent: 'BneBrak-Forum-Performance-Test/1.0 (k6)',
+  userAgent: 'OgenPlay-Site-Performance-Test/1.0 (k6)',
   // הפניות אינן נעקבות כדי לא להעביר עומס לדומיין אחר או למדוד מסך התחברות.
   maxRedirects: 0,
   setupTimeout: '15s',
 };
 
-function hasForumContent(response) {
+function hasSiteContent(response) {
   return response.status === 200 && typeof response.body === 'string' && response.body.includes(EXPECTED_TEXT);
 }
 
@@ -92,26 +95,26 @@ function responseMeaning(response) {
   if (response.status === 403) return '403: הגישה נחסמה; ייתכן כלל אבטחה או הרשאות';
   if (response.status === 429) return '429: האתר מגביל את קצב הבקשות';
   if (response.status >= 500) return `${response.status}: שגיאה בשרת או בשרת מתווך`;
-  if (response.status >= 300 && response.status < 400) return `${response.status}: התקבלה הפניה במקום עמוד הפורום`;
-  if (response.status === 200 && !hasForumContent(response)) return '200: התקבלה תשובה, אך תוכן הפורום לא זוהה';
-  if (response.status === 200) return '200: עמוד הפורום התקבל';
+  if (response.status >= 300 && response.status < 400) return `${response.status}: התקבלה הפניה במקום עמוד האתר`;
+  if (response.status === 200 && !hasSiteContent(response)) return '200: התקבלה תשובה, אך תוכן עוגן פליי לא זוהה';
+  if (response.status === 200) return '200: עמוד עוגן פליי התקבל';
   return `${response.status}: תגובה לא צפויה`;
 }
 
 export function setup() {
-  console.log(`🎯 פורום לבדיקה: ${BASE_URL}/`);
+  console.log(`🎯 האתר לבדיקה: ${BASE_URL}/`);
   console.log(`👥 שיא במחשב הזה: ${TOTAL_VUS} משתמשים מדומים; יעד כולל: ${GLOBAL_VUS}`);
   if (DISTRIBUTED) console.log(`🧩 מחשב ${SHARD_INDEX} מתוך ${SHARD_COUNT}. הדוח המשולב יבדוק חפיפה של השיאים.`);
   console.log(`⏱️ משך מתוכנן: ${TEST_SECONDS} שניות, עם תוספת אפשרית לסיום בקשות פעילות`);
   console.log(`🪜 עלייה ${RAMP_SECONDS} שניות ← שיא ${HOLD_SECONDS} שניות ← ירידה ${RAMP_SECONDS} שניות`);
   console.log('🎯 יעדים: 95% מהכניסות בפחות מ־3 שניות; פחות מ־2% כניסות כושלות');
-  console.log('🧭 בודק תחילה שהפורום זמין ושלא מתקבל דף חסימה...');
+  console.log('🧭 בודק תחילה שהאתר זמין ושלא מתקבל דף חסימה...');
   const response = http.get(`${BASE_URL}/`, { timeout: '10s', tags: { name: 'preflight', phase: 'preflight' } });
-  if (!hasForumContent(response)) {
+  if (!hasSiteContent(response)) {
     exec.test.abort(`🛑 הבדיקה לא התחילה: ${responseMeaning(response)}. פרטים נוספים בלוגים.`);
     return;
   }
-  console.log('✅ עמוד הפורום זוהה. מתחיל את הבדיקה ההדרגתית.');
+  console.log('✅ עמוד הבית זוהה. מתחיל את הבדיקה ההדרגתית.');
 }
 
 let lastProgressLog = -15000;
@@ -124,7 +127,7 @@ export default function () {
   const elapsedMs = Date.now() - startedAt;
   const success = check(response, {
     '✅ עמוד הבית החזיר HTTP 200': (r) => r.status === 200,
-    '📄 תוכן פורום בני ברק זוהה': hasForumContent,
+    '📄 תוכן עוגן פליי זוהה': hasSiteContent,
   });
 
   // כניסה אחת יכולה להיכשל בשתי בדיקות; סופרים אותה פעם אחת בלבד.
@@ -201,7 +204,7 @@ export function handleSummary(data) {
   ].join('\n');
   const summary = {
     ...data,
-    forum_test: {
+    site_test: {
       schema_version: 1,
       target_url: `${BASE_URL}/`,
       planned_vus: TOTAL_VUS,

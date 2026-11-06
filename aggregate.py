@@ -23,7 +23,7 @@ def aggregate(plan, entries):
     reasons = []
     categories = {name: 0 for name in ("blocked_403", "limited_429", "server_errors", "network_errors", "unexpected_responses")}
     for data, metrics in entries:
-        metadata = data.get("forum_test", {})
+        metadata = data.get("site_test", {})
         index = metadata.get("shard_index")
         if index not in expected or index in seen:
             valid = False
@@ -91,7 +91,7 @@ def aggregate(plan, entries):
         reasons.append("אין חפיפה מאומתת של חלונות השיא בכל מחשבי הבדיקה")
     passed = valid and all_passed
     title = "✅ היעד המקבילי אומת וכל מחשבי הבדיקה עמדו ביעדים" if passed else "⚠️ הבדיקה לא עמדה בכל היעדים" if valid else "🛑 אין די נתונים לאימות הבדיקה המלאה"
-    explanation = "הכמות המבוקשת נצפתה בחלונות שיא חופפים. לכל מחשב חושבו יעדי המהירות והשגיאות בנפרד." if valid else "מספר המשתמשים המבוקש הוא יעד בלבד. דוח חלקי או ריצה שאינה מסונכרנת אינם מוכיחים שהפורום נבדק מול הכמות הזו."
+    explanation = "הכמות המבוקשת נצפתה בחלונות שיא חופפים. לכל מחשב חושבו יעדי המהירות והשגיאות בנפרד." if valid else "מספר המשתמשים המבוקש הוא יעד בלבד. דוח חלקי או ריצה שאינה מסונכרנת אינם מוכיחים שהאתר נבדק מול הכמות הזו."
     blank = {"metrics": {name: {"values": {"count": value}} for name, value in categories.items()}}
     base = summarize.make_report(blank)
     rate = failed / total if total else None
@@ -122,7 +122,7 @@ def aggregate(plan, entries):
     ] + base["notes"]
     if reasons:
         notes = ["⚠️ " + reason for reason in dict.fromkeys(reasons)] + notes
-    return {"title": title, "tone": "success" if passed else "warning", "explanation": explanation, "target": "https://bnebrak.com/",
+    return {"title": title, "tone": "success" if passed else "warning", "explanation": explanation, "target": "https://ogenplay.com/",
             "rows": rows, "errors": base["errors"], "targets": [("אימות הכמות בחלונות שיא חופפים", "✅ הושג" if peak_confirmed else "❌ לא אומת"),
                 ("בכל מחשב: p95 נמוך מ־3 שניות ופחות מ־2% תקלות", "✅ הושג" if all_passed and not missing else "❌ לא הושג")],
             "notes": notes, "passed": passed, "workers": sorted(rows_by_worker, key=lambda row: int(row[0]))}
