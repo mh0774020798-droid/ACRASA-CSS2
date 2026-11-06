@@ -21,7 +21,7 @@ function load(env = {}, response = {}) {
   }
   const context = vm.createContext({
     __ENV: env, __VU: 1, Counter: Metric, Gauge: Metric, Rate: Metric, Trend: Metric,
-    http: { get() { requestCount++; return { status: 200, body: '<title>חנות האפליקציות והתוכנות</title>', timings: { duration: 120, waiting: 100 }, ...response }; } },
+    http: { get() { requestCount++; return { status: 200, body: '<title>עוגן פליי</title>', timings: { duration: 120, waiting: 100 }, ...response }; } },
     check(result, checks) { return Object.values(checks).every((check) => check(result)); },
     sleep() {},
     exec: { test: { abort(reason) { throw new Error(reason); } }, instance: { currentTestRunDuration: 1000, vusActive: 1 }, scenario: { progress: 0.05 } },
