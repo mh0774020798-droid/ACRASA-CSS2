@@ -110,7 +110,7 @@ jobs:
             k6 run --quiet load-test.js || status=$?
           fi
 
-          printf '%s\\n' "$status" > k6-exit-code.txt
+          printf '%s\n' "$status" > k6-exit-code.txt
           exit "$status"
 
       - name: '📝 סיכום ברור בעברית ודוח להורדה'
