@@ -1,4 +1,4 @@
-name: "🚀 בדיקת מהירות פורום בני ברק"
+name: "🚀 בדיקת עומס אתר עוגן פליי"
 
 on:
   workflow_dispatch:
@@ -8,6 +8,11 @@ on:
         required: true
         default: '5'
         type: string
+      authorize_target:
+        description: '🔐 אישור: האתר בבעלותי או שיש לי הרשאה מפורשת לבדוק אותו'
+        required: true
+        default: false
+        type: boolean
       duration:
         description: '⏱️ משך הבדיקה'
         required: true
@@ -22,7 +27,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: bnebrak-forum-load-test
+  group: ogenplay-site-load-test
   cancel-in-progress: false
 
 jobs:
@@ -31,10 +36,19 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 12
     env:
-      TARGET_URL: https://bnebrak.com
+      TARGET_URL: https://ogenplay.com
       TOTAL_VUS: ${{ inputs.total_vus }}
       TEST_DURATION: ${{ inputs.duration }}
     steps:
+      - name: '🔐 אישור מפורש לפני יצירת עומס'
+        env:
+          AUTHORIZE_TARGET: ${{ inputs.authorize_target }}
+        run: |
+          if [ "$AUTHORIZE_TARGET" != "true" ]; then
+            echo "🛑 לא הופעל עומס. יש לאשר בעלות או הרשאה מפורשת בשדה authorize_target."
+            exit 1
+          fi
+
       - name: '📥 הכנת קובצי הבדיקה'
         uses: actions/checkout@v4
 
@@ -66,7 +80,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: bnebrak-performance-report-${{ github.run_id }}
+          name: ogenplay-performance-report-${{ github.run_id }}
           retention-days: 14
           if-no-files-found: warn
           path: |
