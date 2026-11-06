@@ -26,7 +26,7 @@ if (TEST_SECONDS < 10 || TEST_SECONDS > 300) {
   throw new Error('⏱️ משך הבדיקה חייב להיות בין 10 שניות ל־5 דקות, למשל 1m.');
 }
 // localhost משמש אך ורק לבדיקות הקוד האוטומטיות.
-if (!/^https:\/\/bnebrak\.com$/.test(BASE_URL) && !/^http:\/\/127\.0\.0\.1:\d+$/.test(BASE_URL)) {
+if (!/^https:\/\/ogenplay\.com$/.test(BASE_URL) && !/^http:\/\/127\.0\.0\.1:\d+$/.test(BASE_URL)) {
   throw new Error('🎯 הגרסה הזו מותאמת לכתובת https://ogenplay.com.');
 }
 const GLOBAL_VUS = Number(rawUsers);
@@ -37,7 +37,7 @@ const RAMP_SECONDS = Math.max(2, Math.floor(TEST_SECONDS * 0.2));
 const HOLD_SECONDS = TEST_SECONDS - RAMP_SECONDS * 2;
 const P95_TARGET_MS = 3000;
 const ERROR_TARGET = 0.02;
-const EXPECTED_TEXT = 'חנות האפליקציות והתוכנות';
+const EXPECTED_TEXT = 'עוגן פליי';
 
 const visits = new Counter('visits');
 const successfulVisits = new Counter('successful_visits');
@@ -86,7 +86,7 @@ export const options = {
   setupTimeout: '15s',
 };
 
-function hasForumContent(response) {
+function hasSiteContent(response) {
   return response.status === 200 && typeof response.body === 'string' && response.body.includes(EXPECTED_TEXT);
 }
 
@@ -96,8 +96,8 @@ function responseMeaning(response) {
   if (response.status === 429) return '429: האתר מגביל את קצב הבקשות';
   if (response.status >= 500) return `${response.status}: שגיאה בשרת או בשרת מתווך`;
   if (response.status >= 300 && response.status < 400) return `${response.status}: התקבלה הפניה במקום עמוד האתר`;
-  if (response.status === 200 && !hasForumContent(response)) return '200: התקבלה תשובה, אך תוכן האתר לא זוהה';
-  if (response.status === 200) return '200: עמוד האתר התקבל';
+  if (response.status === 200 && !hasSiteContent(response)) return '200: התקבלה תשובה, אך תוכן עוגן פליי לא זוהה';
+  if (response.status === 200) return '200: עמוד עוגן פליי התקבל';
   return `${response.status}: תגובה לא צפויה`;
 }
 
@@ -110,7 +110,7 @@ export function setup() {
   console.log('🎯 יעדים: 95% מהכניסות בפחות מ־3 שניות; פחות מ־2% כניסות כושלות');
   console.log('🧭 בודק תחילה שהאתר זמין ושלא מתקבל דף חסימה...');
   const response = http.get(`${BASE_URL}/`, { timeout: '10s', tags: { name: 'preflight', phase: 'preflight' } });
-  if (!hasForumContent(response)) {
+  if (!hasSiteContent(response)) {
     exec.test.abort(`🛑 הבדיקה לא התחילה: ${responseMeaning(response)}. פרטים נוספים בלוגים.`);
     return;
   }
@@ -127,7 +127,7 @@ export default function () {
   const elapsedMs = Date.now() - startedAt;
   const success = check(response, {
     '✅ עמוד הבית החזיר HTTP 200': (r) => r.status === 200,
-    '📄 תוכן חנות האפליקציות והתוכנות זוהה': hasForumContent,
+    '📄 תוכן עוגן פליי זוהה': hasSiteContent,
   });
 
   // כניסה אחת יכולה להיכשל בשתי בדיקות; סופרים אותה פעם אחת בלבד.
