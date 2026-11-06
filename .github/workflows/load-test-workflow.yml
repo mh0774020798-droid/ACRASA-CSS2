@@ -70,9 +70,46 @@ jobs:
       - name: '🚀 בדיקת זמינות, עלייה בעומס ומדידת מהירות'
         id: load
         run: |
-          # שומרים את קוד היציאה וגם מכשילים את הריצה כשהיעדים לא הושגו.
+          # מציגים את הערכים בפועל כדי שאפשר יהיה לזהות טעות בהגדרות עוד לפני k6.
+          echo "👥 משתמשים מדומים: $TOTAL_VUS"
+          echo "⏱️ משך הבדיקה: $TEST_DURATION"
+          echo "🔁 המתנה מינימלית: $MIN_WAIT_SECONDS שניות"
+          echo "🔁 המתנה מקסימלית: $MAX_WAIT_SECONDS שניות"
+
+          # בודקים את טווחי ההמתנה מראש, כדי להציג הודעה ברורה במקום stack trace של k6.
           status=0
-          k6 run --quiet load-test.js || status=$?
+          if ! python3 - <<'PY'
+          import os
+          import re
+          import sys
+          from decimal import Decimal, InvalidOperation
+
+          raw_min = os.environ.get("MIN_WAIT_SECONDS", "")
+          raw_max = os.environ.get("MAX_WAIT_SECONDS", "")
+          number = r"^\d+(?:\.\d{1,2})?$"
+
+          if not re.fullmatch(number, raw_min) or not re.fullmatch(number, raw_max):
+              print(f"🛑 ערכי המתנה לא תקינים: מינימום='{raw_min}', מקסימום='{raw_max}'. יש להזין מספרים כמו 1 ו־3.")
+              sys.exit(1)
+
+          try:
+              min_wait = Decimal(raw_min)
+              max_wait = Decimal(raw_max)
+          except InvalidOperation:
+              print(f"🛑 לא ניתן לקרוא את ערכי ההמתנה: מינימום='{raw_min}', מקסימום='{raw_max}'.")
+              sys.exit(1)
+
+          if min_wait < 1 or max_wait > 30 or max_wait < min_wait:
+              print(f"🛑 טווח לא תקין: מינימום='{raw_min}', מקסימום='{raw_max}'. יש לבחור שני ערכים בין 1 ל־30, והמקסימום חייב להיות גדול או שווה למינימום. דוגמה: 1 ו־3.")
+              sys.exit(1)
+          PY
+          then
+            status=1
+          else
+            # שומרים את קוד היציאה וגם מכשילים את הריצה כשהיעדים לא הושגו.
+            k6 run --quiet load-test.js || status=$?
+          fi
+
           printf '%s\n' "$status" > k6-exit-code.txt
           exit "$status"
 

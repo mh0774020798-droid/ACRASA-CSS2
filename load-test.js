@@ -15,7 +15,7 @@ if (!/^\d+(?:\.\d{1,2})?$/.test(rawMinWait) || !/^\d+(?:\.\d{1,2})?$/.test(rawMa
 const MIN_WAIT_SECONDS = Number(rawMinWait);
 const MAX_WAIT_SECONDS = Number(rawMaxWait);
 if (MIN_WAIT_SECONDS < 1 || MAX_WAIT_SECONDS > 30 || MAX_WAIT_SECONDS < MIN_WAIT_SECONDS) {
-  throw new Error('⏳ יש לבחור מרווח בין 1 ל־30 שניות, כאשר המקסימום אינו קטן מהמינימום.');
+  throw new Error(`⏳ ערכי ההמתנה שהתקבלו: מינימום ${MIN_WAIT_SECONDS}, מקסימום ${MAX_WAIT_SECONDS} שניות. יש לבחור שני ערכים בין 1 ל־30, והמקסימום חייב להיות גדול או שווה למינימום. לדוגמה: מינימום 1 ומקסימום 3.`);
 }
 const DISTRIBUTED = __ENV.DISTRIBUTED === '1';
 const MAX_USERS = DISTRIBUTED ? 100000 : 100;
