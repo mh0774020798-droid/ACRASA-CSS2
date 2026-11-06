@@ -3,7 +3,7 @@ import { check, sleep } from 'k6';
 import exec from 'k6/execution';
 import { Counter, Gauge, Rate, Trend } from 'k6/metrics';
 
-// הבדיקה הרגילה מופעלת ידנית מ-GitHub Actions מול חנות האפליקציות והתוכנות.
+// הבדיקה הרגילה מופעלת ידנית מ-GitHub Actions מול עוגן פליי.
 const BASE_URL = (__ENV.TARGET_URL || 'https://ogenplay.com').replace(/\/+$/, '');
 const rawUsers = __ENV.TOTAL_VUS || '5';
 const rawDuration = __ENV.TEST_DURATION || '1m';
