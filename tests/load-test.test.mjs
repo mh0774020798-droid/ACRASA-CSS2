@@ -21,7 +21,7 @@ function load(env = {}, response = {}) {
   }
   const context = vm.createContext({
     __ENV: env, __VU: 1, Counter: Metric, Gauge: Metric, Rate: Metric, Trend: Metric,
-    http: { get() { requestCount++; return { status: 200, body: '<title>פורום בני ברק</title>', timings: { duration: 120, waiting: 100 }, ...response }; } },
+    http: { get() { requestCount++; return { status: 200, body: '<title>חנות האפליקציות והתוכנות</title>', timings: { duration: 120, waiting: 100 }, ...response }; } },
     check(result, checks) { return Object.values(checks).every((check) => check(result)); },
     sleep() {},
     exec: { test: { abort(reason) { throw new Error(reason); } }, instance: { currentTestRunDuration: 1000, vusActive: 1 }, scenario: { progress: 0.05 } },
@@ -33,7 +33,7 @@ function load(env = {}, response = {}) {
 
 test('ברירת מחדל: 5 משתמשים, דקה אחת, בלי חלוקה לרצים מקבילים', () => {
   const { api } = load();
-  const scenario = api.options.scenarios.forum_visits;
+  const scenario = api.options.scenarios.site_visits;
   assert.equal(scenario.startVUs, 1);
   assert.deepEqual(Array.from(scenario.stages, (stage) => [stage.duration, stage.target]), [['12s', 5], ['36s', 5], ['12s', 0]]);
   assert.equal(api.options.maxRedirects, 0);
@@ -49,7 +49,7 @@ test('100,000 משתמשים מתחלקים בדיוק בין 19 מחשבים', 
   const allocations = [];
   for (let i = 1; i <= 19; i++) {
     const { api } = load({ DISTRIBUTED: '1', TOTAL_VUS: '100000', SHARD_COUNT: '19', SHARD_INDEX: String(i) });
-    allocations.push(api.options.scenarios.forum_visits.stages[0].target);
+    allocations.push(api.options.scenarios.site_visits.stages[0].target);
   }
   assert.equal(allocations.reduce((a, b) => a + b, 0), 100000);
   assert.deepEqual(allocations.slice(0, 4), [5264, 5264, 5264, 5263]);
@@ -113,7 +113,7 @@ test('handleSummary שומר JSON קריא ומטא-נתונים בלי להדפ
   assert.match(result.stdout, /1 \(1.00%\)/);
   assert.match(result.stdout, /800 מילישניות/);
   const saved = JSON.parse(result['summary.json']);
-  assert.equal(saved.forum_test.target_url, 'https://bnebrak.com/');
-  assert.equal(saved.forum_test.planned_vus, 5);
+  assert.equal(saved.site_test.target_url, 'https://ogenplay.com/');
+  assert.equal(saved.site_test.planned_vus, 5);
   assert.match(api.handleSummary({ metrics: {} }).stdout, /אין תוצאות עומס/);
 });
