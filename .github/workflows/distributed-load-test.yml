@@ -19,6 +19,16 @@ on:
         default: '3m'
         type: choice
         options: ['1m', '3m', '5m']
+      min_wait_seconds:
+        description: '⏳ המתנה מינימלית בין בקשות של כל משתמש (1–30 שניות)'
+        required: true
+        default: '1'
+        type: string
+      max_wait_seconds:
+        description: '⏳ המתנה מקסימלית בין בקשות של כל משתמש (עד 30 שניות)'
+        required: true
+        default: '3'
+        type: string
       authorize_target:
         description: '🔐 אישור: האתר בבעלותי או שיש לי הרשאה מפורשת לבדוק אותו'
         required: true
@@ -45,6 +55,8 @@ env:
   TOTAL_VUS: ${{ inputs.total_vus }}
   SHARD_COUNT: ${{ inputs.shard_count }}
   TEST_DURATION: ${{ inputs.duration }}
+  MIN_WAIT_SECONDS: ${{ inputs.min_wait_seconds }}
+  MAX_WAIT_SECONDS: ${{ inputs.max_wait_seconds }}
   DISTRIBUTED: '1'
 
 jobs:

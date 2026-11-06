@@ -63,6 +63,8 @@ def make_report(data, exit_code=None, read_error=None):
     failed_threshold = any(isinstance(item, dict) and item.get("ok") is False for item in thresholds)
     observed_ms = number(data.get("state", {}).get("testRunDurationMs"))
     planned_seconds = number(metadata.get("planned_duration_seconds"))
+    min_wait = number(metadata.get("min_wait_seconds"))
+    max_wait = number(metadata.get("max_wait_seconds"))
     short_run = bool(observed_ms is not None and planned_seconds and observed_ms < planned_seconds * 1000 * 0.95)
     incomplete = read_error is not None or not total or failure_rate is None or p95 is None or short_run or exit_code not in (None, 0, 99)
     passed = not incomplete and not failed_threshold and p95 < p95_target and failure_rate < error_target and exit_code in (None, 0)
@@ -82,6 +84,7 @@ def make_report(data, exit_code=None, read_error=None):
     rows = [
         ("👥 משתמשים מדומים — שיא מתוכנן", integer(number(metadata.get("planned_vus")))),
         ("⏱️ משך מתוכנן", f"{planned_seconds:g} שניות" if planned_seconds else "לא נמדד"),
+        ("🔁 המתנה בין בקשות לכל משתמש", f"{min_wait:g}–{max_wait:g} שניות" if min_wait is not None and max_wait is not None else "לא נמדד"),
         ("⏱️ משך הריצה שנמדד ב־k6", f"{observed_ms / 1000:.1f} שניות" if observed_ms is not None else "לא נמדד"),
         ("📨 כניסות שנבדקו" if not is_legacy else "📨 בקשות HTTP בדוח הישן", integer(total)),
         ("✅ כניסות שהצליחו" if not is_legacy else "✅ בקשות HTTP שהצליחו", integer(succeeded)),

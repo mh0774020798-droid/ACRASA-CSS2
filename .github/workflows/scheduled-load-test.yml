@@ -1,0 +1,124 @@
+name: '⏰ בדיקת עומס אוטומטית — עוגן פליי'
+
+on:
+  schedule:
+    - cron: '17 */4 * * *'
+      timezone: 'Asia/Jerusalem'
+  workflow_dispatch:
+    inputs:
+      total_vus:
+        description: '👥 משתמשים במקביל (1–100; התחילו ב־5)'
+        required: true
+        default: '5'
+        type: string
+      duration:
+        description: '⏱️ משך הבדיקה'
+        required: true
+        default: '1m'
+        type: choice
+        options: ['1m', '3m', '5m']
+      min_wait_seconds:
+        description: '⏳ המתנה מינימלית בין בקשות לכל משתמש (1–30 שניות)'
+        required: true
+        default: '1'
+        type: string
+      max_wait_seconds:
+        description: '⏳ המתנה מקסימלית בין בקשות לכל משתמש (עד 30 שניות)'
+        required: true
+        default: '3'
+        type: string
+      authorize_target:
+        description: '🔐 אישור: האתר בבעלותי או שיש לי הרשאה מפורשת לבדוק אותו'
+        required: true
+        default: false
+        type: boolean
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ogenplay-site-load-test
+  cancel-in-progress: false
+
+jobs:
+  scheduled-disabled:
+    name: '⏸️ בדיקה מתוזמנת אינה מופעלת'
+    if: github.event_name == 'schedule' && (vars.OGENPLAY_SCHEDULE_ENABLED != 'true' || vars.OGENPLAY_SCHEDULE_AUTHORIZED != 'true')
+    runs-on: ubuntu-latest
+    steps:
+      - name: 'ℹ️ הסבר להפעלה'
+        run: |
+          echo "⏸️ לא נשלח עומס לאתר."
+          echo "כדי להפעיל תזמון, הגדירו ב־Settings → Secrets and variables → Actions:"
+          echo "OGENPLAY_SCHEDULE_ENABLED=true"
+          echo "OGENPLAY_SCHEDULE_AUTHORIZED=true"
+
+  load-test:
+    name: '📊 בדיקת HTTP אמיתית ודוח בעברית'
+    if: github.event_name == 'workflow_dispatch' || (vars.OGENPLAY_SCHEDULE_ENABLED == 'true' && vars.OGENPLAY_SCHEDULE_AUTHORIZED == 'true')
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    env:
+      TARGET_URL: https://ogenplay.com
+      TOTAL_VUS: ${{ github.event_name == 'schedule' && vars.OGENPLAY_SCHEDULE_VUS || inputs.total_vus || '5' }}
+      TEST_DURATION: ${{ github.event_name == 'schedule' && vars.OGENPLAY_SCHEDULE_DURATION || inputs.duration || '1m' }}
+      MIN_WAIT_SECONDS: ${{ github.event_name == 'schedule' && vars.OGENPLAY_SCHEDULE_MIN_WAIT_SECONDS || inputs.min_wait_seconds || '1' }}
+      MAX_WAIT_SECONDS: ${{ github.event_name == 'schedule' && vars.OGENPLAY_SCHEDULE_MAX_WAIT_SECONDS || inputs.max_wait_seconds || '3' }}
+    steps:
+      - name: '🔐 אימות הרשאה לפני יצירת עומס'
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          AUTHORIZE_TARGET: ${{ inputs.authorize_target }}
+        run: |
+          if [ "$EVENT_NAME" = "workflow_dispatch" ] && [ "$AUTHORIZE_TARGET" != "true" ]; then
+            echo "🛑 לא הופעל עומס. יש לסמן authorize_target ולאשר בעלות או הרשאה מפורשת."
+            exit 1
+          fi
+          echo "✅ ההרצה המתוזמנת/הידנית אושרה. ממשיכים לבדיקה מוגבלת."
+
+      - name: '📥 הורדת קובצי הבדיקה'
+        uses: actions/checkout@v4
+
+      - name: '🧾 הצגת הגדרות הריצה'
+        run: |
+          echo "🎯 אתר: $TARGET_URL"
+          echo "👥 משתמשים במקביל: $TOTAL_VUS"
+          echo "⏱️ משך בדיקה: $TEST_DURATION"
+          echo "🔁 המתנה בין בקשות למשתמש: $MIN_WAIT_SECONDS–$MAX_WAIT_SECONDS שניות"
+          echo "ℹ️ כל משתמש שולח בקשת GET אמיתית לעמוד הבית, ממתין, וחוזר."
+
+      - name: '🔧 התקנת k6'
+        run: bash scripts/install-k6.sh
+
+      - name: '🚀 בדיקת עומס מדורגת'
+        id: load
+        run: |
+          status=0
+          k6 run --quiet load-test.js || status=$?
+          printf '%s\n' "$status" > k6-exit-code.txt
+          exit "$status"
+
+      - name: '📝 סיכום בעברית'
+        if: always()
+        run: |
+          status=0
+          python3 summarize.py summary.json \
+            --exit-code-file k6-exit-code.txt \
+            --markdown report.md --html report.html || status=$?
+          if [ -f report.md ]; then
+            cat report.md >> "$GITHUB_STEP_SUMMARY"
+          fi
+          exit "$status"
+
+      - name: '💾 שמירת דוחות להורדה'
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ogenplay-scheduled-report-${{ github.run_id }}
+          retention-days: 14
+          if-no-files-found: warn
+          path: |
+            report.html
+            report.md
+            summary.json
+            k6-exit-code.txt

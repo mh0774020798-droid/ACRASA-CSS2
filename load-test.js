@@ -7,6 +7,16 @@ import { Counter, Gauge, Rate, Trend } from 'k6/metrics';
 const BASE_URL = (__ENV.TARGET_URL || 'https://ogenplay.com').replace(/\/+$/, '');
 const rawUsers = __ENV.TOTAL_VUS || '5';
 const rawDuration = __ENV.TEST_DURATION || '1m';
+const rawMinWait = __ENV.MIN_WAIT_SECONDS || '1';
+const rawMaxWait = __ENV.MAX_WAIT_SECONDS || '3';
+if (!/^\d+(?:\.\d{1,2})?$/.test(rawMinWait) || !/^\d+(?:\.\d{1,2})?$/.test(rawMaxWait)) {
+  throw new Error('⏳ מרווח ההמתנה חייב להיות מספר בשניות, למשל 1 או 2.5.');
+}
+const MIN_WAIT_SECONDS = Number(rawMinWait);
+const MAX_WAIT_SECONDS = Number(rawMaxWait);
+if (MIN_WAIT_SECONDS < 1 || MAX_WAIT_SECONDS > 30 || MAX_WAIT_SECONDS < MIN_WAIT_SECONDS) {
+  throw new Error('⏳ יש לבחור מרווח בין 1 ל־30 שניות, כאשר המקסימום אינו קטן מהמינימום.');
+}
 const DISTRIBUTED = __ENV.DISTRIBUTED === '1';
 const MAX_USERS = DISTRIBUTED ? 100000 : 100;
 if (!/^\d+$/.test(rawUsers) || Number(rawUsers) < 1 || Number(rawUsers) > MAX_USERS) {
@@ -106,6 +116,7 @@ export function setup() {
   console.log(`👥 שיא במחשב הזה: ${TOTAL_VUS} משתמשים מדומים; יעד כולל: ${GLOBAL_VUS}`);
   if (DISTRIBUTED) console.log(`🧩 מחשב ${SHARD_INDEX} מתוך ${SHARD_COUNT}. הדוח המשולב יבדוק חפיפה של השיאים.`);
   console.log(`⏱️ משך מתוכנן: ${TEST_SECONDS} שניות, עם תוספת אפשרית לסיום בקשות פעילות`);
+  console.log(`🔁 מרווח בין בקשות לכל משתמש: ${MIN_WAIT_SECONDS}–${MAX_WAIT_SECONDS} שניות`);
   console.log(`🪜 עלייה ${RAMP_SECONDS} שניות ← שיא ${HOLD_SECONDS} שניות ← ירידה ${RAMP_SECONDS} שניות`);
   console.log('🎯 יעדים: 95% מהכניסות בפחות מ־3 שניות; פחות מ־2% כניסות כושלות');
   console.log('🧭 בודק תחילה שהאתר זמין ושלא מתקבל דף חסימה...');
@@ -166,7 +177,7 @@ export default function () {
       console.warn(`⚠️ דוגמת תקלה ${errorSamples}/3: ${responseMeaning(response)}`);
     }
   }
-  sleep(1 + Math.random() * 2);
+  sleep(MIN_WAIT_SECONDS + Math.random() * (MAX_WAIT_SECONDS - MIN_WAIT_SECONDS));
 }
 
 function values(data, metric) {
@@ -216,6 +227,8 @@ export function handleSummary(data) {
       p95_target_ms: P95_TARGET_MS,
       error_target_rate: ERROR_TARGET,
       expected_text: EXPECTED_TEXT,
+      min_wait_seconds: MIN_WAIT_SECONDS,
+      max_wait_seconds: MAX_WAIT_SECONDS,
     },
   };
   return { stdout: output, 'summary.json': JSON.stringify(summary, null, 2) };

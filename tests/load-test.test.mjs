@@ -15,6 +15,7 @@ function load(env = {}, response = {}) {
   const measurements = {};
   const messages = [];
   let requestCount = 0;
+  const waits = [];
   class Metric {
     constructor(name) { this.name = name; measurements[name] = []; }
     add(value) { measurements[this.name].push(value); }
@@ -23,12 +24,12 @@ function load(env = {}, response = {}) {
     __ENV: env, __VU: 1, Counter: Metric, Gauge: Metric, Rate: Metric, Trend: Metric,
     http: { get() { requestCount++; return { status: 200, body: '<title>עוגן פליי</title>', timings: { duration: 120, waiting: 100 }, ...response }; } },
     check(result, checks) { return Object.values(checks).every((check) => check(result)); },
-    sleep() {},
+    sleep(seconds) { waits.push(seconds); },
     exec: { test: { abort(reason) { throw new Error(reason); } }, instance: { currentTestRunDuration: 1000, vusActive: 1 }, scenario: { progress: 0.05 } },
     console: { log(message) { messages.push(message); }, warn(message) { messages.push(message); } },
   });
   new vm.Script(source + '\nglobalThis.api = { options, setup, iterate, handleSummary };').runInContext(context);
-  return { api: context.api, measurements, messages, requests: () => requestCount };
+  return { api: context.api, measurements, messages, waits, requests: () => requestCount };
 }
 
 test('ברירת מחדל: 5 משתמשים, דקה אחת, בלי חלוקה לרצים מקבילים', () => {
@@ -37,12 +38,18 @@ test('ברירת מחדל: 5 משתמשים, דקה אחת, בלי חלוקה ל
   assert.equal(scenario.startVUs, 1);
   assert.deepEqual(Array.from(scenario.stages, (stage) => [stage.duration, stage.target]), [['12s', 5], ['36s', 5], ['12s', 0]]);
   assert.equal(api.options.maxRedirects, 0);
+  const defaultPacing = load();
+  defaultPacing.api.iterate();
+  assert.ok(defaultPacing.waits[0] >= 1 && defaultPacing.waits[0] <= 3);
 });
 
 test('קלט שגוי נעצר לפני פנייה לאתר', () => {
   for (const total of ['0', '-1', '101', '5abc', '1.5', '$(id)']) assert.throws(() => load({ TOTAL_VUS: total }), /👥/);
   for (const duration of ['0s', '9s', '6m', 'one minute']) assert.throws(() => load({ TEST_DURATION: duration }), /⏱️/);
   assert.throws(() => load({ TARGET_URL: 'https://example.com' }), /🎯/);
+  for (const value of ['0', '0.5', '31', 'abc']) assert.throws(() => load({ MIN_WAIT_SECONDS: value }), /⏳/);
+  for (const value of ['0.5', '31', 'abc']) assert.throws(() => load({ MAX_WAIT_SECONDS: value }), /⏳/);
+  assert.throws(() => load({ MIN_WAIT_SECONDS: '5', MAX_WAIT_SECONDS: '4' }), /⏳/);
 });
 
 test('100,000 משתמשים מתחלקים בדיוק בין 19 מחשבים', () => {
@@ -56,6 +63,12 @@ test('100,000 משתמשים מתחלקים בדיוק בין 19 מחשבים', 
   assert.throws(() => load({ DISTRIBUTED: '1', TOTAL_VUS: '100000', SHARD_COUNT: '1' }), /יותר מדי/);
   assert.throws(() => load({ DISTRIBUTED: '1', TOTAL_VUS: '100001' }), /👥/);
   assert.throws(() => load({ DISTRIBUTED: '1', TOTAL_VUS: '10', SHARD_COUNT: '20' }), /🧩/);
+});
+
+test('אפשר לשנות את תדירות הבקשות לכל משתמש', () => {
+  const fixture = load({ MIN_WAIT_SECONDS: '2.5', MAX_WAIT_SECONDS: '4.5' });
+  fixture.api.iterate();
+  assert.ok(fixture.waits[0] >= 2.5 && fixture.waits[0] <= 4.5);
 });
 
 test('בדיקת הזמינות אינה נספרת ככניסת עומס', () => {
@@ -115,5 +128,7 @@ test('handleSummary שומר JSON קריא ומטא-נתונים בלי להדפ
   const saved = JSON.parse(result['summary.json']);
   assert.equal(saved.site_test.target_url, 'https://ogenplay.com/');
   assert.equal(saved.site_test.planned_vus, 5);
+  assert.equal(saved.site_test.min_wait_seconds, 1);
+  assert.equal(saved.site_test.max_wait_seconds, 3);
   assert.match(api.handleSummary({ metrics: {} }).stdout, /אין תוצאות עומס/);
 });
