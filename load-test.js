@@ -115,7 +115,8 @@ export function setup() {
   console.log(`🎯 האתר לבדיקה: ${BASE_URL}/`);
   console.log(`👥 שיא במחשב הזה: ${TOTAL_VUS} משתמשים מדומים; יעד כולל: ${GLOBAL_VUS}`);
   if (DISTRIBUTED) console.log(`🧩 מחשב ${SHARD_INDEX} מתוך ${SHARD_COUNT}. הדוח המשולב יבדוק חפיפה של השיאים.`);
-  console.log(`⏱️ משך מתוכנן: ${TEST_SECONDS} שניות, עם תוספת אפשרית לסיום בקשות פעילות`);\n  console.log(`🔁 מרווח בין בקשות לכל משתמש: ${MIN_WAIT_SECONDS}–${MAX_WAIT_SECONDS} שניות`);
+  console.log(`⏱️ משך מתוכנן: ${TEST_SECONDS} שניות, עם תוספת אפשרית לסיום בקשות פעילות`);
+  console.log(`🔁 מרווח בין בקשות לכל משתמש: ${MIN_WAIT_SECONDS}–${MAX_WAIT_SECONDS} שניות`);
   console.log(`🪜 עלייה ${RAMP_SECONDS} שניות ← שיא ${HOLD_SECONDS} שניות ← ירידה ${RAMP_SECONDS} שניות`);
   console.log('🎯 יעדים: 95% מהכניסות בפחות מ־3 שניות; פחות מ־2% כניסות כושלות');
   console.log('🧭 בודק תחילה שהאתר זמין ושלא מתקבל דף חסימה...');
@@ -225,7 +226,9 @@ export function handleSummary(data) {
       planned_duration_seconds: TEST_SECONDS,
       p95_target_ms: P95_TARGET_MS,
       error_target_rate: ERROR_TARGET,
-      expected_text: EXPECTED_TEXT,\n      min_wait_seconds: MIN_WAIT_SECONDS,\n      max_wait_seconds: MAX_WAIT_SECONDS,
+      expected_text: EXPECTED_TEXT,
+      min_wait_seconds: MIN_WAIT_SECONDS,
+      max_wait_seconds: MAX_WAIT_SECONDS,
     },
   };
   return { stdout: output, 'summary.json': JSON.stringify(summary, null, 2) };
