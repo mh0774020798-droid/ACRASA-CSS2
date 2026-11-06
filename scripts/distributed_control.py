@@ -95,7 +95,7 @@ def artifact_json(artifact, filename):
 
 
 def artifact_prefix(kind):
-    return f"bnebrak-{kind}-{os.environ['GITHUB_RUN_ID']}-{os.environ.get('GITHUB_RUN_ATTEMPT', '1')}"
+    return f"ogenplay-{kind}-{os.environ['GITHUB_RUN_ID']}-{os.environ.get('GITHUB_RUN_ATTEMPT', '1')}"
 
 
 def memory_capacity():
